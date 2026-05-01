@@ -1,36 +1,160 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Team Task Manager (TaskFlow)
 
-## Getting Started
+A full-stack collaborative task management platform built with modern web technologies. Features role-based access control, project management, Kanban-style task boards, and a real-time dashboard.
 
-First, run the development server:
+## 🚀 Tech Stack
+
+| Layer          | Technology                              |
+| -------------- | --------------------------------------- |
+| **Framework**  | Next.js 16 (App Router)                 |
+| **Language**   | TypeScript                              |
+| **Styling**    | Tailwind CSS v4 + Shadcn UI (Base Nova) |
+| **Database**   | PostgreSQL (via Prisma ORM v7)          |
+| **Auth**       | NextAuth.js (Credentials Provider)      |
+| **Deployment** | Railway                                 |
+
+## ✨ Features
+
+- **Authentication** — Signup/Login with bcrypt-hashed passwords & JWT sessions
+- **Role-Based Access Control** — Admin and Member roles with enforced permissions
+- **Project Management** — Create projects, assign team members
+- **Kanban Task Board** — Visual task management with To Do / In Progress / Done columns
+- **Dashboard** — Real-time stats, completion tracking, overdue alerts
+- **Dark Mode** — Premium dark UI with glassmorphism and gradient accents
+
+## 📁 Project Structure
+
+```
+src/
+├── app/
+│   ├── api/                    # REST API Route Handlers
+│   │   ├── auth/               # NextAuth + Signup
+│   │   ├── dashboard/          # Dashboard stats
+│   │   ├── projects/           # Project CRUD
+│   │   ├── tasks/              # Task CRUD
+│   │   └── users/              # User listing
+│   ├── dashboard/              # Authenticated views
+│   │   ├── layout.tsx          # Sidebar + header shell
+│   │   ├── page.tsx            # Dashboard stats
+│   │   └── projects/           # Project list + task board
+│   ├── login/                  # Login page
+│   ├── signup/                 # Signup page
+│   └── page.tsx                # Landing page
+├── components/
+│   ├── providers/              # SessionProvider
+│   └── ui/                     # Shadcn UI components
+├── lib/
+│   ├── auth.ts                 # NextAuth config
+│   ├── auth-helpers.ts         # RBAC utilities
+│   ├── prisma.ts               # Prisma client singleton
+│   └── utils.ts                # Shadcn utilities
+└── types/
+    └── next-auth.d.ts          # Auth type extensions
+```
+
+## 🛠️ Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- PostgreSQL database (local or hosted)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone <your-repo-url>
+cd team-task-manger
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your DATABASE_URL and NEXTAUTH_SECRET
+```
+
+### Database Setup
+
+```bash
+# Push schema to database
+npm run db:push
+
+# Seed with demo data
+npm run db:seed
+```
+
+### Development
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Demo Accounts (after seeding)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Role   | Email              | Password   |
+| ------ | ------------------ | ---------- |
+| Admin  | admin@example.com  | admin123   |
+| Member | member@example.com | member123  |
 
-## Learn More
+## 🚂 Deploy to Railway
 
-To learn more about Next.js, take a look at the following resources:
+1. Push your code to a GitHub repository
+2. Create a new project on [Railway](https://railway.app)
+3. Add a **PostgreSQL** service
+4. Connect your GitHub repo as a **Web Service**
+5. Set environment variables:
+   - `DATABASE_URL` — auto-injected by Railway PostgreSQL
+   - `NEXTAUTH_SECRET` — generate with `openssl rand -base64 32`
+   - `NEXTAUTH_URL` — your Railway deployment URL (e.g., `https://your-app.up.railway.app`)
+6. Deploy! Railway will auto-detect Next.js and build using nixpacks
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Post-Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# Run migrations on Railway
+railway run npx prisma db push
 
-## Deploy on Vercel
+# Seed the database
+railway run npx prisma db seed
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 📜 Available Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Script          | Description                            |
+| --------------- | -------------------------------------- |
+| `npm run dev`   | Start development server               |
+| `npm run build` | Build for production (generates Prisma) |
+| `npm start`     | Start production server                |
+| `npm run lint`  | Run ESLint                             |
+| `npm run db:push`    | Push Prisma schema to database    |
+| `npm run db:migrate` | Create & apply a migration        |
+| `npm run db:seed`    | Seed database with demo data      |
+| `npm run db:studio`  | Open Prisma Studio (GUI)          |
+
+## 🔐 API Endpoints
+
+| Method | Endpoint                          | Auth     | Description                    |
+| ------ | --------------------------------- | -------- | ------------------------------ |
+| POST   | `/api/auth/signup`                | Public   | Register a new user            |
+| *      | `/api/auth/[...nextauth]`         | Public   | NextAuth handlers              |
+| GET    | `/api/dashboard`                  | Auth     | Dashboard statistics           |
+| GET    | `/api/projects`                   | Auth     | List projects (role-scoped)    |
+| POST   | `/api/projects`                   | Admin    | Create a project               |
+| GET    | `/api/projects/:id`               | Auth     | Get project details + tasks    |
+| PUT    | `/api/projects/:id`               | Admin    | Update project                 |
+| DELETE | `/api/projects/:id`               | Admin    | Delete project (cascades)      |
+| GET    | `/api/projects/:id/tasks`         | Auth     | List tasks (filterable)        |
+| POST   | `/api/projects/:id/tasks`         | Admin    | Create a task                  |
+| GET    | `/api/tasks/:id`                  | Auth     | Get task details               |
+| PATCH  | `/api/tasks/:id`                  | Auth*    | Update task (RBAC enforced)    |
+| DELETE | `/api/tasks/:id`                  | Admin    | Delete a task                  |
+| GET    | `/api/users`                      | Auth     | List all users                 |
+
+*Members can only update the status of tasks assigned to them.
+
+## 📄 License
+
+MIT
