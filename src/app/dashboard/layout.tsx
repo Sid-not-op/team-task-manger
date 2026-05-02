@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -52,7 +53,7 @@ export default function DashboardLayout({
     }
   }, [status, router]);
 
-  if (status === "loading") {
+  if (status === "loading" || !session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -62,8 +63,6 @@ export default function DashboardLayout({
       </div>
     );
   }
-
-  if (!session) return null;
 
   const initials = session.user.name
     ? session.user.name
@@ -151,12 +150,14 @@ export default function DashboardLayout({
                 </Badge>
               </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="font-normal">
-                <p className="text-sm font-medium">{session.user.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {session.user.email}
-                </p>
-              </DropdownMenuLabel>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="font-normal">
+                  <p className="text-sm font-medium">{session.user.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {session.user.email}
+                  </p>
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => signOut({ callbackUrl: "/login" })}
