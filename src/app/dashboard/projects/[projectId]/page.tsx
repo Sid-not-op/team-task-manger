@@ -400,7 +400,7 @@ export default function ProjectTaskBoard() {
                     const isUpdating = updatingTaskId === task.id;
 
                     return (
-                      <Card key={task.id} className="border-border/30 bg-card/90 backdrop-blur-sm hover:border-border/50 transition-all duration-200 group">
+                      <Card key={task.id} className="border-border/30 bg-card/90 backdrop-blur-sm hover:border-border/50 transition-all duration-200 group overflow-visible">
                         <CardContent className="p-3.5 space-y-3">
                           <div className="flex items-start gap-2">
                             <GripVertical className="w-4 h-4 text-muted-foreground/30 shrink-0 mt-0.5" />
