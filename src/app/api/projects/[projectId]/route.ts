@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: RouteParams) {
         },
         tasks: {
           include: {
-            assignee: {
+            assignees: {
               select: { id: true, name: true, email: true },
             },
           },

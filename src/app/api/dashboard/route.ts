@@ -15,7 +15,7 @@ export async function GET() {
 
   try {
     // Base filter: admin sees all, member sees only assigned tasks
-    const taskFilter = isAdmin ? {} : { assigneeId: session.user.id };
+    const taskFilter = isAdmin ? {} : { assignees: { some: { id: session.user.id } } };
 
     // Count tasks by status
     const [totalTasks, todoTasks, inProgressTasks, doneTasks, overdueTasks] =
@@ -44,7 +44,7 @@ export async function GET() {
     const recentTasks = await prisma.task.findMany({
       where: taskFilter,
       include: {
-        assignee: {
+        assignees: {
           select: { id: true, name: true, email: true },
         },
         project: {

@@ -66,7 +66,9 @@ async function main() {
       status: "TODO",
       dueDate: new Date("2026-05-15"),
       projectId: project.id,
-      assigneeId: member.id,
+      assignees: {
+        connect: [{ id: member.id }, { id: admin.id }],
+      },
     },
   });
 
@@ -80,7 +82,9 @@ async function main() {
       status: "IN_PROGRESS",
       dueDate: new Date("2026-05-10"),
       projectId: project.id,
-      assigneeId: admin.id,
+      assignees: {
+        connect: [{ id: admin.id }],
+      },
     },
   });
 
@@ -94,7 +98,9 @@ async function main() {
       status: "DONE",
       dueDate: new Date("2026-04-30"),
       projectId: project.id,
-      assigneeId: member.id,
+      assignees: {
+        connect: [{ id: member.id }],
+      },
     },
   });
 

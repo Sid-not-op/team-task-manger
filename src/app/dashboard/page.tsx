@@ -38,7 +38,7 @@ interface RecentTask {
   status: "TODO" | "IN_PROGRESS" | "DONE";
   dueDate: string | null;
   updatedAt: string;
-  assignee: { id: string; name: string; email: string } | null;
+  assignees: { id: string; name: string; email: string }[];
   project: { id: string; name: string };
 }
 
@@ -366,7 +366,7 @@ export default function DashboardPage() {
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           {task.project.name}
-                          {task.assignee && ` • ${task.assignee.name}`}
+                          {task.assignees.length > 0 && ` • ${task.assignees.map(a => a.name).join(", ")}`}
                         </p>
                       </div>
                     </div>

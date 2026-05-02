@@ -52,7 +52,7 @@ interface Task {
   id: string; title: string; description: string | null;
   status: "TODO" | "IN_PROGRESS" | "DONE";
   dueDate: string | null; createdAt: string;
-  assignee: TaskAssignee | null;
+  assignees: TaskAssignee[];
   project: { id: string; name: string };
 }
 interface ProjectMember { id: string; name: string; email: string; role: string }
@@ -97,7 +97,7 @@ export default function ProjectTaskBoard() {
   const [newDesc, setNewDesc] = useState("");
   const [newStatus, setNewStatus] = useState<"TODO" | "IN_PROGRESS" | "DONE">("TODO");
   const [newDueDate, setNewDueDate] = useState("");
-  const [newAssigneeId, setNewAssigneeId] = useState("");
+  const [newAssigneeIds, setNewAssigneeIds] = useState<string[]>([]);
 
   // Member add selection
   const [selectedNewMembers, setSelectedNewMembers] = useState<string[]>([]);
@@ -126,9 +126,9 @@ export default function ProjectTaskBoard() {
     try {
       const res = await fetch(`/api/projects/${projectId}/tasks`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle, description: newDesc || undefined, status: newStatus, dueDate: newDueDate || undefined, assigneeId: newAssigneeId || undefined }),
+        body: JSON.stringify({ title: newTitle, description: newDesc || undefined, status: newStatus, dueDate: newDueDate || undefined, assigneeIds: newAssigneeIds.length > 0 ? newAssigneeIds : undefined }),
       });
-      if (res.ok) { setCreateOpen(false); setNewTitle(""); setNewDesc(""); setNewStatus("TODO"); setNewDueDate(""); setNewAssigneeId(""); fetchProject(); }
+      if (res.ok) { setCreateOpen(false); setNewTitle(""); setNewDesc(""); setNewStatus("TODO"); setNewDueDate(""); setNewAssigneeIds([]); fetchProject(); }
     } catch (e) { console.error("Failed to create task:", e); }
     finally { setCreating(false); }
   };
@@ -142,11 +142,14 @@ export default function ProjectTaskBoard() {
     finally { setUpdatingTaskId(null); }
   };
 
-  const handleAssigneeChange = async (taskId: string, assigneeId: string | null) => {
+  const handleToggleAssignee = async (taskId: string, memberId: string, currentAssignees: TaskAssignee[]) => {
     setUpdatingTaskId(taskId);
+    const isAssigned = currentAssignees.some((a) => a.id === memberId);
+    const newIds = isAssigned
+      ? currentAssignees.filter((a) => a.id !== memberId).map((a) => a.id)
+      : [...currentAssignees.map((a) => a.id), memberId];
     try {
-      const body = assigneeId === "unassigned" ? { assigneeId: null } : { assigneeId };
-      const res = await fetch(`/api/tasks/${taskId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assigneeIds: newIds }) });
       if (res.ok) fetchProject();
     } catch (e) { console.error(e); }
     finally { setUpdatingTaskId(null); }
@@ -345,14 +348,21 @@ export default function ProjectTaskBoard() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="task-assignee">Assign To</Label>
-                  <Select value={newAssigneeId} onValueChange={(v: string | null) => setNewAssigneeId(v ?? "")}>
-                    <SelectTrigger id="task-assignee" className="bg-background/50"><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {project.members.map((m) => (<SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Assign To ({newAssigneeIds.length} selected)</Label>
+                  <div className="max-h-36 overflow-auto rounded-lg border border-border/40 bg-background/50 divide-y divide-border/30">
+                    {project.members.map((m) => (
+                      <label key={m.id} className="flex items-center gap-3 px-3 py-2 hover:bg-accent/30 transition-colors cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newAssigneeIds.includes(m.id)}
+                          onChange={() => setNewAssigneeIds((prev) => prev.includes(m.id) ? prev.filter((id) => id !== m.id) : [...prev, m.id])}
+                          className="rounded border-border/60 w-4 h-4"
+                        />
+                        <Avatar className="w-6 h-6"><AvatarFallback className="text-[9px] bg-accent">{getInitials(m.name)}</AvatarFallback></Avatar>
+                        <span className="text-sm">{m.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>Cancel</Button>
@@ -386,7 +396,7 @@ export default function ProjectTaskBoard() {
                 ) : (
                   tasks.map((task) => {
                     const isOverdue = task.dueDate && task.status !== "DONE" && new Date(task.dueDate) < new Date();
-                    const canUpdateStatus = isAdmin || task.assignee?.id === session?.user.id;
+                    const canUpdateStatus = isAdmin || task.assignees.some((a) => a.id === session?.user.id);
                     const isUpdating = updatingTaskId === task.id;
 
                     return (
@@ -411,42 +421,59 @@ export default function ProjectTaskBoard() {
                               )}
                             </div>
 
-                            {/* Assignee: clickable dropdown for admin, static avatar for members */}
+                            {/* Assignees: admin gets a checkbox dropdown, members see avatars */}
                             {isAdmin ? (
-                              <Select
-                                value={task.assignee?.id ?? "unassigned"}
-                                onValueChange={(v: string | null) => { if (v) handleAssigneeChange(task.id, v); }}
-                                disabled={isUpdating}
-                              >
-                                <SelectTrigger className="h-7 w-auto min-w-0 gap-1.5 px-2 text-[11px] bg-background/30 border-border/30">
-                                  {task.assignee ? (
-                                    <div className="flex items-center gap-1.5">
-                                      <Avatar className="w-4 h-4"><AvatarFallback className="text-[7px] bg-accent">{getInitials(task.assignee.name)}</AvatarFallback></Avatar>
-                                      <span className="truncate max-w-[60px]">{task.assignee.name.split(" ")[0]}</span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-1 text-muted-foreground"><User className="w-3 h-3" /> <span>Assign</span></div>
-                                  )}
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="unassigned">
-                                    <div className="flex items-center gap-2"><User className="w-3 h-3 text-muted-foreground" /> Unassigned</div>
-                                  </SelectItem>
-                                  {project.members.map((m) => (
-                                    <SelectItem key={m.id} value={m.id}>
-                                      <div className="flex items-center gap-2">
-                                        <Avatar className="w-4 h-4"><AvatarFallback className="text-[7px] bg-accent">{getInitials(m.name)}</AvatarFallback></Avatar>
-                                        {m.name}
+                              <div className="relative group/assign">
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-background/30 border border-border/30 hover:bg-background/50 transition-colors cursor-pointer"
+                                  onClick={(e) => {
+                                    const popover = e.currentTarget.nextElementSibling;
+                                    if (popover) popover.classList.toggle("hidden");
+                                  }}
+                                  disabled={isUpdating}
+                                >
+                                  {task.assignees.length > 0 ? (
+                                    <>
+                                      <div className="flex -space-x-1.5">
+                                        {task.assignees.slice(0, 3).map((a) => (
+                                          <Avatar key={a.id} className="w-4 h-4 border border-background"><AvatarFallback className="text-[7px] bg-accent">{getInitials(a.name)}</AvatarFallback></Avatar>
+                                        ))}
                                       </div>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                      <span className="text-muted-foreground">{task.assignees.length}</span>
+                                    </>
+                                  ) : (
+                                    <><User className="w-3 h-3 text-muted-foreground" /> <span className="text-muted-foreground">Assign</span></>
+                                  )}
+                                </button>
+                                {/* Dropdown checkbox list */}
+                                <div className="hidden absolute right-0 top-full mt-1 z-50 w-48 rounded-lg border border-border/50 bg-card shadow-xl p-1 max-h-48 overflow-auto">
+                                  {project.members.map((m) => {
+                                    const isAssigned = task.assignees.some((a) => a.id === m.id);
+                                    return (
+                                      <label key={m.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-accent/40 transition-colors cursor-pointer text-xs">
+                                        <input
+                                          type="checkbox"
+                                          checked={isAssigned}
+                                          onChange={() => handleToggleAssignee(task.id, m.id, task.assignees)}
+                                          className="rounded border-border/60 w-3.5 h-3.5"
+                                        />
+                                        <Avatar className="w-5 h-5"><AvatarFallback className="text-[8px] bg-accent">{getInitials(m.name)}</AvatarFallback></Avatar>
+                                        <span className="truncate">{m.name}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
                             ) : (
-                              task.assignee ? (
-                                <Avatar className="w-6 h-6" title={task.assignee.name}>
-                                  <AvatarFallback className="text-[9px] bg-accent">{getInitials(task.assignee.name)}</AvatarFallback>
-                                </Avatar>
+                              task.assignees.length > 0 ? (
+                                <div className="flex -space-x-1.5">
+                                  {task.assignees.map((a) => (
+                                    <Avatar key={a.id} className="w-6 h-6 border border-background" title={a.name}>
+                                      <AvatarFallback className="text-[9px] bg-accent">{getInitials(a.name)}</AvatarFallback>
+                                    </Avatar>
+                                  ))}
+                                </div>
                               ) : (
                                 <div className="w-6 h-6 rounded-full border border-dashed border-border/50 flex items-center justify-center">
                                   <User className="w-3 h-3 text-muted-foreground/50" />

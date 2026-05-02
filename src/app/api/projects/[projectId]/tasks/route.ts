@@ -8,9 +8,6 @@ interface RouteParams {
 }
 
 // ─── GET /api/projects/:projectId/tasks ─────────────────────
-// Fetch all tasks for a project
-// ADMIN: sees all tasks
-// MEMBER: must be a project member to see tasks
 export async function GET(request: Request, { params }: RouteParams) {
   const auth = await requireAuth();
   if (!auth.authorized) return auth.response;
@@ -19,49 +16,33 @@ export async function GET(request: Request, { params }: RouteParams) {
   const { projectId } = await params;
 
   try {
-    // Verify project exists and user has access
     const project = await prisma.project.findUnique({
       where: { id: projectId },
-      include: {
-        members: { select: { id: true } },
-      },
+      include: { members: { select: { id: true } } },
     });
 
     if (!project) {
-      return NextResponse.json(
-        { error: "Project not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     if (session.user.role === "MEMBER") {
       const isMember = project.members.some((m) => m.id === session.user.id);
       if (!isMember) {
-        return NextResponse.json(
-          { error: "Forbidden: You are not a member of this project" },
-          { status: 403 }
-        );
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
 
-    // Parse optional query params for filtering
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
-    const assigneeId = searchParams.get("assigneeId");
 
     const where: Record<string, unknown> = { projectId };
     if (status) where.status = status;
-    if (assigneeId) where.assigneeId = assigneeId;
 
     const tasks = await prisma.task.findMany({
       where,
       include: {
-        assignee: {
-          select: { id: true, name: true, email: true },
-        },
-        project: {
-          select: { id: true, name: true },
-        },
+        assignees: { select: { id: true, name: true, email: true } },
+        project: { select: { id: true, name: true } },
       },
       orderBy: [{ status: "asc" }, { dueDate: "asc" }],
     });
@@ -69,21 +50,17 @@ export async function GET(request: Request, { params }: RouteParams) {
     return NextResponse.json({ tasks });
   } catch (error) {
     console.error("Error fetching tasks:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch tasks" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 });
   }
 }
 
 // ─── POST /api/projects/:projectId/tasks ────────────────────
-// ADMIN only: create a new task in a project
 const createTaskSchema = z.object({
   title: z.string().min(1, "Task title is required").max(200),
   description: z.string().max(1000).optional(),
   status: z.enum(["TODO", "IN_PROGRESS", "DONE"]).optional().default("TODO"),
-  dueDate: z.string().optional(), // ISO date string
-  assigneeId: z.string().optional(),
+  dueDate: z.string().optional(),
+  assigneeIds: z.array(z.string()).optional().default([]),
 });
 
 export async function POST(request: Request, { params }: RouteParams) {
@@ -93,17 +70,13 @@ export async function POST(request: Request, { params }: RouteParams) {
   const { projectId } = await params;
 
   try {
-    // Verify project exists
     const project = await prisma.project.findUnique({
       where: { id: projectId },
       include: { members: { select: { id: true } } },
     });
 
     if (!project) {
-      return NextResponse.json(
-        { error: "Project not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     const body = await request.json();
@@ -116,14 +89,15 @@ export async function POST(request: Request, { params }: RouteParams) {
       );
     }
 
-    const { title, description, status, dueDate, assigneeId } = result.data;
+    const { title, description, status, dueDate, assigneeIds } = result.data;
 
-    // If assigning to a user, verify they are a project member
-    if (assigneeId) {
-      const isMember = project.members.some((m) => m.id === assigneeId);
-      if (!isMember) {
+    // Verify all assignees are project members
+    if (assigneeIds.length > 0) {
+      const memberIds = new Set(project.members.map((m) => m.id));
+      const invalid = assigneeIds.filter((id) => !memberIds.has(id));
+      if (invalid.length > 0) {
         return NextResponse.json(
-          { error: "Assignee must be a member of this project" },
+          { error: "All assignees must be members of this project" },
           { status: 400 }
         );
       }
@@ -136,27 +110,19 @@ export async function POST(request: Request, { params }: RouteParams) {
         status,
         dueDate: dueDate ? new Date(dueDate) : null,
         projectId,
-        assigneeId: assigneeId || null,
+        assignees: assigneeIds.length > 0
+          ? { connect: assigneeIds.map((id) => ({ id })) }
+          : undefined,
       },
       include: {
-        assignee: {
-          select: { id: true, name: true, email: true },
-        },
-        project: {
-          select: { id: true, name: true },
-        },
+        assignees: { select: { id: true, name: true, email: true } },
+        project: { select: { id: true, name: true } },
       },
     });
 
-    return NextResponse.json(
-      { message: "Task created successfully", task },
-      { status: 201 }
-    );
+    return NextResponse.json({ message: "Task created successfully", task }, { status: 201 });
   } catch (error) {
     console.error("Error creating task:", error);
-    return NextResponse.json(
-      { error: "Failed to create task" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create task" }, { status: 500 });
   }
 }

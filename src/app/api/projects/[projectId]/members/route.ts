@@ -101,8 +101,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       include: {
         members: { select: { id: true } },
         tasks: {
-          where: { assigneeId: { not: null } },
-          select: { id: true, assigneeId: true },
+          include: { assignees: { select: { id: true } } },
         },
       },
     });
@@ -141,18 +140,18 @@ export async function DELETE(request: Request, { params }: RouteParams) {
       );
     }
 
-    // Unassign any tasks assigned to this member within the project
-    const assignedTasks = project.tasks.filter((t) => t.assigneeId === memberId);
-    if (assignedTasks.length > 0) {
-      await prisma.task.updateMany({
-        where: {
-          id: { in: assignedTasks.map((t) => t.id) },
-        },
-        data: { assigneeId: null },
+    // Disconnect this member from all tasks in the project
+    const tasksWithMember = project.tasks.filter((t) =>
+      t.assignees.some((a) => a.id === memberId)
+    );
+    for (const task of tasksWithMember) {
+      await prisma.task.update({
+        where: { id: task.id },
+        data: { assignees: { disconnect: { id: memberId } } },
       });
     }
 
-    // Remove the member
+    // Remove the member from the project
     const updatedProject = await prisma.project.update({
       where: { id: projectId },
       data: {
@@ -170,7 +169,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     return NextResponse.json({
       message: "Member removed successfully",
       members: updatedProject.members,
-      unassignedTasks: assignedTasks.length,
+      unassignedTasks: tasksWithMember.length,
     });
   } catch (error) {
     console.error("Error removing member:", error);

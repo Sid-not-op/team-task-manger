@@ -41,8 +41,8 @@ model User {
   // Projects this user is a member of
   projects Project[] @relation("ProjectMembers")
 
-  // Tasks assigned to this user
-  tasks Task[] @relation("TaskAssignee")
+  // Tasks assigned to this user (many-to-many)
+  assignedTasks Task[] @relation("TaskAssignees")
 
   @@map("users")
 }
@@ -80,9 +80,8 @@ model Task {
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  // The user this task is assigned to
-  assigneeId String?
-  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  // Users assigned to this task (many-to-many)
+  assignees User[] @relation("TaskAssignees")
 
   @@map("tasks")
 }
